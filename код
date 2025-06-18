@@ -1,62 +1,75 @@
-from collections import defaultdict, deque
 import re
+from collections import defaultdict
+
+
+class Queue:
+    def __init__(self):
+        self._data = []
+
+    def append(self, item):
+        self._data.append(item)
+
+    def popleft(self):
+        if not self.is_empty():
+            return self._data.pop(0)
+        raise IndexError('Очередь пуста!')
+
+    def peek(self):
+        if not self.is_empty():
+            return self._data[0]
+        raise IndexError('Очередь пуста!')
+
+    def is_empty(self):
+        return len(self._data) == 0
 
 
 class GraphBuilder:
     @staticmethod
     def normalize(word):
-        """Возвращает нормированную форму слова (первая и последняя буквы, исключая мягкий знак 'ь')."""
-        # Если слово оканчивается на мягкий знак 'ь', исключаем его
         end = -2 if len(word) > 1 and word[-1] == 'ь' else -1
         return word[0], word[end]
 
     def __init__(self, words):
-        # Создание графических структур для хранения рёбер и вершин
-        self.graph = defaultdict(list)  # Список смежности (ключ — буква, значение — список букв, к которым ведёт ребро)
-        self.in_degree = defaultdict(int)  # Входящая степень вершин (количество входящих рёбер)
-        self.out_degree = defaultdict(int)  # Исходящая степень вершин (количество исходящих рёбер)
-        self.edges = defaultdict(list)  # Соответствия рёбер и слов
-        self.build(words)  # Начинаем построение графа
+        self.graph = defaultdict(list)
+        self.in_degree = defaultdict(int)
+        self.out_degree = defaultdict(int)
+        self.edges = defaultdict(list)
+        self.build(words)
 
     def build(self, words):
-        """Создание графа взаимосвязей между словами."""
-        # Проходим по каждому слову
         for w in words:
-            start, end = self.normalize(w)  # Получаем первую и последнюю буквы слова
-            self.graph[start].append(end)  # Добавляем связь (ребро) в граф
-            self.out_degree[start] += 1  # Увеличим исходящую степень первой буквы
-            self.in_degree[end] += 1  # Увеличим входящую степень последней буквы
-            self.edges[(start, end)].append(w)  # Сохраняем само слово, соответствующее данному ребру
+            start, end = self.normalize(w)
+            self.graph[start].append(end)
+            self.out_degree[start] += 1
+            self.in_degree[end] += 1
+            self.edges[(start, end)].append(w)
 
 
 class PathFinder:
     def __init__(self, graph_builder):
-        # Принимаем готовый граф
         self.graph = graph_builder.graph
         self.edges = graph_builder.edges
         self.in_degree = graph_builder.in_degree
         self.out_degree = graph_builder.out_degree
 
     def find_start_node(self):
-        """Нахождение стартовой вершины для обхода графа."""
+        # Нахождение стартовой вершины для обхода Эйлерова пути
         start = None
-        vertices = set(self.in_degree.keys()) | set(self.out_degree.keys())  # Объединяем все уникальные вершины
+        vertices = set(self.in_degree.keys()) | set(self.out_degree.keys())
 
-        # Проверяем, какая вершина подходит для старта
         for vertex in vertices:
-            out_degree = self.out_degree.get(vertex, 0)  # Количество исходящих рёбер
-            in_degree = self.in_degree.get(vertex, 0)  # Количество входящих рёбер
+            out_degree = self.out_degree.get(vertex, 0)
+            in_degree = self.in_degree.get(vertex, 0)
 
-            # Если разница исходящих и входящих рёбер равна +1, то это потенциальная стартовая точка
+            # Если разница исходящих и входящих степеней равна 1 — это начало пути
             if out_degree - in_degree == 1:
                 if start is not None:
-                    return None  # Больше одной стартовой вершины недопустимо
+                    return None
                 start = vertex
-            # Если разрыв больше 1 или у вершины есть только входящие рёбра, граф неприемлем
+
             elif abs(out_degree - in_degree) > 1 or (out_degree == 0 and in_degree > 0):
                 return None
 
-        # Если старт не найден, выбираем любую вершину с положительными исходящими рёбрами
         if start is None:
             for vertex in vertices:
                 if self.out_degree.get(vertex, 0) > 0:
@@ -64,50 +77,49 @@ class PathFinder:
         return start
 
     def hierholzer(self, start):
-        """Алгоритм Хиршоля для поиска Эйлерова цикла."""
-        # Локально копируем граф, чтобы не повредить оригинальный
-        local_graph = {u: deque(v) for u, v in self.graph.items()}
-        stack = [start]  # Стек для хранения текущего пути
-        path = []  # Финальный путь
+        local_graph = {u: Queue() for u in self.graph}
+        for u, v in self.graph.items():
+            queue = local_graph[u]
+            for neighbor in v:
+                queue.append(neighbor)
+
+        stack = [start]
+        path = []
 
         while stack:
-            current_vertex = stack[-1]  # Текущая вершина сверху стека
-            neighbors = local_graph[current_vertex]  # Соседи текущей вершины
+            current_vertex = stack[-1]
+            neighbors = local_graph[current_vertex]
 
-            if neighbors:
-                # Если есть доступные соседи, идём глубже
-                next_vertex = neighbors.popleft()  # Беру ближайшего соседа
-                stack.append(next_vertex)  # Отправляемся туда
+            if not neighbors.is_empty():
+                next_vertex = neighbors.popleft()
+                stack.append(next_vertex)
             else:
-                # Если соседствующих вершин нет, фиксируем текущую вершину в пути
                 path.append(stack.pop())
 
-        # Инвертируем путь, чтобы вернуть корректный порядок
         path.reverse()
         return path
 
     def build_chain(self, words):
-        """Постройка цепочки слов на основе найденного пути."""
-        start = self.find_start_node()  # Находим стартовую вершину
+        # Основной метод для формирования цепи слов
+        start = self.find_start_node()
         if start is None:
-            return None  # Если не удаётся найти старт, останавливаемся
+            return None
 
-        path = self.hierholzer(start)  # Находим Эйлеров путь
-        result = []  # Массив для сохранения цепочки слов
+        path = self.hierholzer(start)
+        result = []
 
-        # Формируем цепочку из слов
         for i in range(len(path) - 1):
-            edge = (path[i], path[i + 1])  # Пара (первая буква, вторая буква)
-            if self.edges[edge]:  # Если такое ребро существует
-                result.append(self.edges[edge].pop())  # Достаю слово из ребра
+            edge = (path[i], path[i + 1])
+            if self.edges[edge]:
+                result.append(self.edges[edge].pop())
             else:
-                return None  # Если ребро исчезло, прервать процесс
+                return None
 
-        # Проверяю, замыкается ли цепочка
+        # Проверяем цикличность первой и последней букв
         first_letter, _ = GraphBuilder.normalize(result[0])
         _, last_letter = GraphBuilder.normalize(result[-1])
         if last_letter != first_letter:
-            return None  # Если не замыкается, цепочка не подходит
+            return None
 
         return result
 
@@ -115,13 +127,11 @@ class PathFinder:
 class Validator:
     @staticmethod
     def validate_input(input_line):
-        """Проверка корректности пользовательского ввода."""
-        words = input_line.strip().split()  # Разбиение строки на слова
+        words = input_line.strip().split()
         if not words:
             print("Ошибка: пустой ввод!")
             return None
 
-        # Проверяем каждое слово
         pattern = re.compile(r'^[а-яё]+$')
         for w in words:
             if not pattern.fullmatch(w):
@@ -139,12 +149,13 @@ class AppController:
 
         while True:
             try:
-                user_input = input("\nВаши слова: ").lower()
+                user_input = input("\nВаши слова(только русские буквы):").lower()
                 words = Validator.validate_input(user_input)
 
                 if words is None:
                     continue
 
+                # Строим граф и ищем путь
                 builder = GraphBuilder(words)
                 finder = PathFinder(builder)
                 chain = finder.build_chain(words)
@@ -154,7 +165,6 @@ class AppController:
                     print(" -> ".join(chain))
                 else:
                     print("\nК сожалению, по вашим словам цепочку составить не удалось.")
-
 
                 while True:
                     choice = input("\nХотите попробовать снова? (Да / Нет): ").strip().lower()
@@ -172,6 +182,7 @@ class AppController:
                 print(f"\nПроизошла ошибка: {e}. Попробуем ещё раз?")
 
         print("\nСпасибо за игру! До новых встреч!\n")
+
 
 if __name__ == "__main__":
     controller = AppController()
