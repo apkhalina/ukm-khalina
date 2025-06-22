@@ -2,6 +2,39 @@ import re
 from collections import defaultdict
 
 
+# Класс узла односвязного списка
+class Node:
+    def __init__(self, value=None, next=None):
+        self.value = value
+        self.next = next
+
+
+# Односвязный стек
+class Stack:
+    def __init__(self):
+        self.top = None  # Верхний элемент стека (указатель на первый узел)
+
+    def push(self, value):
+        new_node = Node(value=value, next=self.top)
+        self.top = new_node
+
+    def pop(self):
+        if self.is_empty():
+            raise IndexError("Стек пуст!")
+        popped_value = self.top.value
+        self.top = self.top.next
+        return popped_value
+
+    def peek(self):
+        if self.is_empty():
+            raise IndexError("Стек пуст!")
+        return self.top.value
+
+    def is_empty(self):
+        return self.top is None
+
+
+# Очередь на основе обычного списка
 class Queue:
     def __init__(self):
         self._data = []
@@ -23,6 +56,7 @@ class Queue:
         return len(self._data) == 0
 
 
+# Построитель графа
 class GraphBuilder:
     @staticmethod
     def normalize(word):
@@ -45,6 +79,7 @@ class GraphBuilder:
             self.edges[(start, end)].append(w)
 
 
+# Поиск Эйлерова пути
 class PathFinder:
     def __init__(self, graph_builder):
         self.graph = graph_builder.graph
@@ -83,16 +118,17 @@ class PathFinder:
             for neighbor in v:
                 queue.append(neighbor)
 
-        stack = [start]
+        stack = Stack()  # Использование стека на основе односвязного списка
+        stack.push(start)
         path = []
 
-        while stack:
-            current_vertex = stack[-1]
+        while not stack.is_empty():
+            current_vertex = stack.peek()
             neighbors = local_graph[current_vertex]
 
             if not neighbors.is_empty():
                 next_vertex = neighbors.popleft()
-                stack.append(next_vertex)
+                stack.push(next_vertex)
             else:
                 path.append(stack.pop())
 
@@ -115,7 +151,7 @@ class PathFinder:
             else:
                 return None
 
-        # Проверяем цикличность первой и последней букв
+        # Проверка цикличности первой и последней букв
         first_letter, _ = GraphBuilder.normalize(result[0])
         _, last_letter = GraphBuilder.normalize(result[-1])
         if last_letter != first_letter:
@@ -124,6 +160,7 @@ class PathFinder:
         return result
 
 
+# Валидатор ввода
 class Validator:
     @staticmethod
     def validate_input(input_line):
@@ -141,15 +178,16 @@ class Validator:
         return words
 
 
+# Контроллер приложения
 class AppController:
     def run(self):
         print("\nДобро пожаловать в игру \"Цепочка слов\"!\n")
         print("Правила просты:\nВведите слова через пробел.\nПервые и последние буквы соседних слов должны совпадать.")
-        print("\nНачнём играть?\n")
+        print("\nНачнем играть?\n")
 
         while True:
             try:
-                user_input = input("\nВаши слова(только русские буквы):").lower()
+                user_input = input("\nВаши слова (только русские буквы): ").lower()
                 words = Validator.validate_input(user_input)
 
                 if words is None:
@@ -179,7 +217,7 @@ class AppController:
                     break
 
             except Exception as e:
-                print(f"\nПроизошла ошибка: {e}. Попробуем ещё раз?")
+                print(f"\nПроизошла ошибка: {e}. Попробуем еще раз?")
 
         print("\nСпасибо за игру! До новых встреч!\n")
 
